@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  SPRING_DATASOURCE_URL: "jdbc:mysql://mysql-service:3306/countrydb?useSSL=false&allowPublicKeyRetrieval=true"
+  SOAP_SERVICE_URL: "http://webservices.oorsprong.org/websamples.countryinfo/CountryInfoService.wso"

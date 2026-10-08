@@ -25,40 +25,46 @@ public class CountryService {
         this.countryRepository = countryRepository;
     }
 
-    @Transactional
-    public CountryInfo processAndSaveCountry(String rawName) {
-        String formattedName = toSentenceCase(rawName);
-        log.info("[PROCESS] Converted raw input '{}' to Sentence Case '{}'", rawName, formattedName);
+ @Transactional
+public CountryInfo processAndSaveCountry(String rawName) {
+    String formattedName = toSentenceCase(rawName);
+    log.info("[PROCESS] Searching SOAP service for: {}", formattedName);
 
-        // Fetch ISO Code
-        String isoCode = soapCountryService.getCountryIsoCode(formattedName);
-        if ("No country found by that name".equalsIgnoreCase(isoCode)) {
-            throw new ResourceNotFoundException("No valid country found for name: " + formattedName);
-        }
-
-        // Fetch Full Info from SOAP
-        TCountryInfo fullInfo = soapCountryService.getFullCountryInfo(isoCode);
-
-        // Map XML response to JPA Entity
-        List<Language> languages = fullInfo.getLanguages().getTLanguage().stream()
-                .map(l -> Language.builder().isoCode(l.getSISOCode()).name(l.getSName()).build())
-                .collect(Collectors.toList());
-
-        CountryInfo countryInfo = CountryInfo.builder()
-                .isoCode(fullInfo.getSISOCode())
-                .name(fullInfo.getSName())
-                .capitalCity(fullInfo.getSCapitalCity())
-                .phoneCode(fullInfo.getSPhoneCode())
-                .continentCode(fullInfo.getSContinentCode())
-                .currencyIsoCode(fullInfo.getSCurrencyISOCode())
-                .countryFlagUrl(fullInfo.getSCountryFlag())
-                .languages(languages)
-                .build();
-
-        CountryInfo saved = countryRepository.save(countryInfo);
-        log.info("[DATABASE] Successfully persisted country details with ID: {}", saved.getId());
-        return saved;
+    // 1. Fetch ISO Code from SOAP
+    String isoCode = soapCountryService.getCountryIsoCode(formattedName);
+    if (isoCode == null || isoCode.toLowerCase().contains("no country found")) {
+        throw new ResourceNotFoundException("No country found for name: " + formattedName);
     }
+
+    // 2. Fetch Full Info from SOAP
+    TCountryInfo fullInfo = soapCountryService.getFullCountryInfo(isoCode);
+
+    // 3. Map SOAP Languages
+    List<Language> languages = fullInfo.getLanguages().getTLanguage().stream()
+            .map(l -> Language.builder()
+                    .isoCode(l.getSISOCode())
+                    .name(l.getSName())
+                    .build())
+            .collect(Collectors.toList());
+
+    // 4. Check if entity already exists in MySQL to prevent Duplicate Entry exception
+    CountryInfo countryInfo = countryRepository.findByIsoCode(isoCode)
+            .orElseGet(CountryInfo::new);
+
+    countryInfo.setIsoCode(fullInfo.getSISOCode());
+    countryInfo.setName(fullInfo.getSName());
+    countryInfo.setCapitalCity(fullInfo.getSCapitalCity());
+    countryInfo.setPhoneCode(fullInfo.getSPhoneCode());
+    countryInfo.setContinentCode(fullInfo.getSContinentCode());
+    countryInfo.setCurrencyIsoCode(fullInfo.getSCurrencyISOCode());
+    countryInfo.setCountryFlagUrl(fullInfo.getSCountryFlag());
+
+    // Clear existing languages and re-add to avoid Orphan Removal issues
+    countryInfo.getLanguages().clear();
+    countryInfo.getLanguages().addAll(languages);
+
+    return countryRepository.save(countryInfo);
+}
 
     public List<CountryInfo> getAllCountries() {
         return countryRepository.findAll();

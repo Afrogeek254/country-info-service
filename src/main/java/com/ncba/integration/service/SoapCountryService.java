@@ -1,6 +1,7 @@
 package com.ncba.integration.service;
 
 import com.ncba.integration.soap.client.*;
+import jakarta.xml.bind.JAXBElement;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import org.slf4j.Logger;
@@ -18,45 +19,45 @@ public class SoapCountryService {
         this.webServiceTemplate = webServiceTemplate;
     }
 
-    /**
-     * Consume SOAP API to get ISO Code from Country Name
-     */
     @CircuitBreaker(name = "soapService", fallbackMethod = "fallbackGetIsoCode")
     @Retry(name = "soapService")
     public String getCountryIsoCode(String countryName) {
-        log.info("[SOAP OUTBOUND] Fetching ISO Code for country name: {}", countryName);
         CountryISOCode request = new CountryISOCode();
         request.setSCountryName(countryName);
 
-        CountryISOCodeResponse response = (CountryISOCodeResponse) webServiceTemplate.marshalSendAndReceive(request);
-        String result = response.getCountryISOCodeResult();
-        log.info("[SOAP RESPONSE] Received ISO Code: {} for country: {}", result, countryName);
-        return result;
+        Object response = webServiceTemplate.marshalSendAndReceive(request);
+        
+        if (response instanceof JAXBElement) {
+            response = ((JAXBElement<?>) response).getValue();
+        }
+
+        CountryISOCodeResponse isoResponse = (CountryISOCodeResponse) response;
+        return isoResponse.getCountryISOCodeResult();
     }
 
-    /**
-     * Consume SOAP API to get Full Country Info using ISO Code
-     */
     @CircuitBreaker(name = "soapService", fallbackMethod = "fallbackGetFullInfo")
     @Retry(name = "soapService")
     public TCountryInfo getFullCountryInfo(String isoCode) {
-        log.info("[SOAP OUTBOUND] Fetching Full Country Info for ISO: {}", isoCode);
         FullCountryInfo request = new FullCountryInfo();
         request.setSCountryISOCode(isoCode);
 
-        FullCountryInfoResponse response = (FullCountryInfoResponse) webServiceTemplate.marshalSendAndReceive(request);
-        log.info("[SOAP RESPONSE] Successfully retrieved full details for ISO: {}", isoCode);
-        return response.getFullCountryInfoResult();
+        Object response = webServiceTemplate.marshalSendAndReceive(request);
+
+        if (response instanceof JAXBElement) {
+            response = ((JAXBElement<?>) response).getValue();
+        }
+
+        FullCountryInfoResponse fullInfoResponse = (FullCountryInfoResponse) response;
+        return fullInfoResponse.getFullCountryInfoResult();
     }
 
-    // Fallback Methods for Circuit Breaker
     public String fallbackGetIsoCode(String countryName, Throwable t) {
-        log.error("[FALLBACK] Failure calling SOAP Service for ISO Code: {}", t.getMessage());
-        throw new RuntimeException("External SOAP Service unavailable. Failed to resolve ISO code.");
+        log.error("SOAP ISO Code Call Failed: {}", t.getMessage());
+        throw new RuntimeException("SOAP Service is unavailable for ISO Code resolution: " + t.getMessage());
     }
 
     public TCountryInfo fallbackGetFullInfo(String isoCode, Throwable t) {
-        log.error("[FALLBACK] Failure calling SOAP Service for Full Info: {}", t.getMessage());
-        throw new RuntimeException("External SOAP Service unavailable. Failed to fetch full country details.");
+        log.error("SOAP Full Info Call Failed: {}", t.getMessage());
+        throw new RuntimeException("SOAP Service is unavailable for Full Info resolution: " + t.getMessage());
     }
 }
