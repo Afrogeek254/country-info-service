@@ -1,21 +1,21 @@
-package com.ncba.integration.entity;
+    package com.ncba.integration.entity;
 
-import jakarta.persistence.*;
-import lombok.*;
+    import jakarta.persistence.*;
+    import lombok.*;
 
-@Entity
-@Table(name = "languages")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class Language {
+    @Entity
+    @Table(name = "languages")
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public class Language {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+        @Id
+        @GeneratedValue(strategy = GenerationType.IDENTITY)
+        private Long id;
 
-    private String isoCode;
-    private String name;
-}
+        private String isoCode;
+        private String name;
+    }

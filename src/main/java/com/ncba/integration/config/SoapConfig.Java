@@ -16,6 +16,7 @@ public class SoapConfig {
     /**
      * Configure JAXB Marshaller/Unmarshaller for SOAP XML serialization
      */
+    
     @Bean
     public Jaxb2Marshaller marshaller() {
         Jaxb2Marshaller marshaller = new Jaxb2Marshaller();
