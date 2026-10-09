@@ -50,3 +50,4 @@ resilience4j:
 soap:
   service:
     url: http://webservices.oorsprong.org/websamples.countryinfo/CountryInfoService.wso
+

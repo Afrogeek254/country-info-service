@@ -11,7 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.stream.Collectors;
+// fix the for otion 2 to check if the country already exists in the database before saving to avoid duplication error
+import java.util.Optional;
+ import java.util.stream.Collectors;
 
 @Service
 public class CountryService {
@@ -25,21 +27,24 @@ public class CountryService {
         this.countryRepository = countryRepository;
     }
 
- @Transactional
+@Transactional
 public CountryInfo processAndSaveCountry(String rawName) {
     String formattedName = toSentenceCase(rawName);
-    log.info("[PROCESS] Searching SOAP service for: {}", formattedName);
+    log.info("[PROCESS] Searching for country: {}", formattedName);
 
-    // 1. Fetch ISO Code from SOAP
+    // 1. Fetch ISO Code from SOAP API
     String isoCode = soapCountryService.getCountryIsoCode(formattedName);
-    if (isoCode == null || isoCode.toLowerCase().contains("no country found")) {
-        throw new ResourceNotFoundException("No country found for name: " + formattedName);
+    if (isoCode == null || isoCode.contains("No country found")) {
+        throw new ResourceNotFoundException("No valid country ISO code found for name: " + formattedName);
     }
 
-    // 2. Fetch Full Info from SOAP
+    // 2. Check if already saved in MySQL to prevent duplicate key errors
+    Optional<CountryInfo> existingCountry = countryRepository.findByIsoCode(isoCode);
+
+    // 3. Fetch Full Info from SOAP API
     TCountryInfo fullInfo = soapCountryService.getFullCountryInfo(isoCode);
 
-    // 3. Map SOAP Languages
+    // 4. Map Languages from SOAP response
     List<Language> languages = fullInfo.getLanguages().getTLanguage().stream()
             .map(l -> Language.builder()
                     .isoCode(l.getSISOCode())
@@ -47,21 +52,33 @@ public CountryInfo processAndSaveCountry(String rawName) {
                     .build())
             .collect(Collectors.toList());
 
-    // 4. Check if entity already exists in MySQL to prevent Duplicate Entry exception
-    CountryInfo countryInfo = countryRepository.findByIsoCode(isoCode)
-            .orElseGet(CountryInfo::new);
-
-    countryInfo.setIsoCode(fullInfo.getSISOCode());
-    countryInfo.setName(fullInfo.getSName());
-    countryInfo.setCapitalCity(fullInfo.getSCapitalCity());
-    countryInfo.setPhoneCode(fullInfo.getSPhoneCode());
-    countryInfo.setContinentCode(fullInfo.getSContinentCode());
-    countryInfo.setCurrencyIsoCode(fullInfo.getSCurrencyISOCode());
-    countryInfo.setCountryFlagUrl(fullInfo.getSCountryFlag());
-
-    // Clear existing languages and re-add to avoid Orphan Removal issues
-    countryInfo.getLanguages().clear();
-    countryInfo.getLanguages().addAll(languages);
+    CountryInfo countryInfo;
+    if (existingCountry.isPresent()) {
+        // Update existing entity
+        countryInfo = existingCountry.get();
+        countryInfo.setName(fullInfo.getSName());
+        countryInfo.setCapitalCity(fullInfo.getSCapitalCity());
+        countryInfo.setPhoneCode(fullInfo.getSPhoneCode());
+        countryInfo.setContinentCode(fullInfo.getSContinentCode());
+        countryInfo.setCurrencyIsoCode(fullInfo.getSCurrencyISOCode());
+        countryInfo.setCountryFlagUrl(fullInfo.getSCountryFlag());
+        countryInfo.getLanguages().clear();
+        countryInfo.getLanguages().addAll(languages);
+        log.info("[DATABASE] Updating existing record for ISO: {}", isoCode);
+    } else {
+        // Create new entity
+        countryInfo = CountryInfo.builder()
+                .isoCode(fullInfo.getSISOCode())
+                .name(fullInfo.getSName())
+                .capitalCity(fullInfo.getSCapitalCity())
+                .phoneCode(fullInfo.getSPhoneCode())
+                .continentCode(fullInfo.getSContinentCode())
+                .currencyIsoCode(fullInfo.getSCurrencyISOCode())
+                .countryFlagUrl(fullInfo.getSCountryFlag())
+                .languages(languages)
+                .build();
+        log.info("[DATABASE] Inserting new record for ISO: {}", isoCode);
+    }
 
     return countryRepository.save(countryInfo);
 }
