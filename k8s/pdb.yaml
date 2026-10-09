@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: country-info-service
+  namespace: country-info
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: country-info-service

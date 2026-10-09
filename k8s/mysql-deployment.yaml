@@ -1,37 +1,10 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: mysql
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: mysql
-  template:
-    metadata:
-      labels:
-        app: mysql
-    spec:
-      containers:
-        - name: mysql
-          image: mysql:8.0
-          env:
-            - name: MYSQL_ROOT_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: db-secret
-                  key: SPRING_DATASOURCE_PASSWORD
-            - name: MYSQL_DATABASE
-              value: countrydb
-          ports:
-            - containerPort: 3306
----
+
 apiVersion: v1
-kind: Service
+kind: Secret
 metadata:
-  name: mysql-service
-spec:
-  ports:
-    - port: 3306
-  selector:
-    app: mysql
+  name: db-secret
+type: Opaque
+data:
+  # Base64 encoded 'root' and 'rootpassword'
+  SPRING_DATASOURCE_USERNAME: cm9vdA==
+  SPRING_DATASOURCE_PASSWORD: cm9vdA==

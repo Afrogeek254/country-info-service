@@ -1,7 +1,15 @@
+# Non-secret configuration. Change values here, re-apply, then: kubectl -n country-info rollout restart deployment/country-info-service
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: app-config
+  name: country-info-config
+  namespace: country-info
 data:
-  SPRING_DATASOURCE_URL: "jdbc:mysql://mysql-service:3306/countrydb?useSSL=false&allowPublicKeyRetrieval=true"
-  SOAP_SERVICE_URL: "http://webservices.oorsprong.org/websamples.countryinfo/CountryInfoService.wso"
+  SPRING_PROFILES_ACTIVE: "prod"          # JSON structured logs
+  DB_URL: "jdbc:mysql://mysql:3306/countrydb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+  DB_POOL_SIZE: "10"
+  DDL_AUTO: "update"
+  SOAP_ENDPOINT_URL: "http://webservices.oorsprong.org/websamples.countryinfo/CountryInfoService.wso"
+  SOAP_CONNECT_TIMEOUT: "3s"
+  SOAP_READ_TIMEOUT: "10s"
+  JAVA_OPTS: "-XX:MaxRAMPercentage=75 -XX:+UseG1GC"

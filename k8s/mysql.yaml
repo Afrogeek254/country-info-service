@@ -1,0 +1,78 @@
+# MySQL for demo / dev clusters. In production prefer a managed database (RDS, Cloud SQL, ...)
+# or an operator-managed HA cluster; a single StatefulSet replica is a single point of failure.
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: country-info
+  labels:
+    app: mysql
+spec:
+  clusterIP: None            # headless: stable DNS name "mysql" for the StatefulSet
+  selector:
+    app: mysql
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: country-info
+spec:
+  serviceName: mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          ports:
+            - containerPort: 3306
+              name: mysql
+          env:
+            - name: MYSQL_DATABASE
+              value: countrydb
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef: { name: country-info-secret, key: DB_USERNAME }
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: country-info-secret, key: DB_PASSWORD }
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: country-info-secret, key: MYSQL_ROOT_PASSWORD }
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits:   { cpu: "1",  memory: 1Gi }
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$MYSQL_ROOT_PASSWORD\""]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$MYSQL_ROOT_PASSWORD\""]
+            initialDelaySeconds: 45
+            periodSeconds: 20
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi
